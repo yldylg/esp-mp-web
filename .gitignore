@@ -1,0 +1,13 @@
+*.pyc
+*.log
+.venv/ 
+.idea/*
+
+instance/
+.DS_Store
+data/
+test.py
+
+logs/
+testing/
+.vscode/
