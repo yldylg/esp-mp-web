@@ -3,23 +3,203 @@
 
 <head>
     <meta charset="utf-8">
-    <meta name="viewport" content="width=device-width,initial-scale=1.0">
+    <meta name="viewport" content="width=device-width,initial-scale=1">
     <title>mp-esp8266</title>
+    <link rel="stylesheet" href="milligram.min.css" type="text/css" />
 </head>
 
+<style type="text/css">
+    html,
+    body {
+        width: 100%;
+        height: 100%;
+        margin: 0;
+        padding: 0;
+    }
+
+    .wrap {
+        padding-top: 5.8rem;
+        display: none;
+        overflow: hidden;
+        position: relative;
+        width: 100%
+    }
+
+    .wrap>.container {
+        padding-bottom: 1.5rem;
+        padding-top: 1.5rem
+    }
+
+    header {
+        position: fixed;
+        background: #f4f5f6;
+        border-bottom: .1rem solid #d1d1d1;
+        display: block;
+        text-align: center;
+        height: 5.2rem;
+        left: 0;
+        right: 0;
+        top: 0;
+        width: 100%;
+        z-index: 1
+    }
+
+    header a.button {
+        position: absolute;
+        left: 0;
+        line-height: 5.2rem;
+        margin: 0;
+    }
+
+    header .title {
+        display: inline;
+        font-size: 1.8rem;
+        line-height: 5.2rem;
+        padding: 0;
+    }
+
+    .page {
+        float: left;
+        width: 100px;
+        height: 100px;
+        padding: 10px;
+    }
+
+    .page>a {
+        display: block;
+        padding: 0;
+        margin: 0;
+        width: 80px;
+        height: 80px;
+        line-height: 80px;
+        text-align: center;
+        text-decoration: none;
+    }
+
+    .radio-wrap {
+        float: left;
+        padding: 0px 10px;
+    }
+
+    .radio-label {
+        font-weight: bold;
+    }
+
+    input[type=range] {
+        -webkit-appearance: none;
+        border-radius: 10px;
+    }
+
+    input[type=range]::-webkit-slider-runnable-track {
+        height: 15px;
+        border-radius: 10px;
+        box-shadow: 0 1px 1px #999, inset 0 .05em .05em #aaa;
+    }
+
+    input[type=range]:focus {
+        outline: none;
+    }
+
+    input[type=range]::-webkit-slider-thumb {
+        -webkit-appearance: none;
+        height: 25px;
+        width: 25px;
+        margin-top: -5px;
+        background: #ffffff;
+        border-radius: 50%;
+        border: solid 0.125em #aaa;
+        box-shadow: 0 .05em .05em #999;
+    }
+
+    .range {
+        width: 100%;
+    }
+</style>
+
 <body>
-    <header>micropython esp8266</header>
-    <div id="ap-settings">
-        <input id="ap-ssid" placeholder="SSID" />
-        <input id="ap-pass" placeholder="密码" />
-        <button id="ap-set">设置</button>
+    <header>
+        <a class="button button-clear" href="javascript:history.back();">back</a>
+        <h1 class="title">mp esp8266 - <span id="title">main</span></h1>
+    </header>
+
+    <div class="wrap" id="page-main">
+        <div class="page">
+            <a class="button" href="#page-wifi">WiFi</a>
+        </div>
+        <div class="page">
+            <a class="button" href="#page-gpio">GPIO</a>
+        </div>
+        <div class="page">
+            <a class="button" href="#page-pwm">PWM</a>
+        </div>
+        <div class="page">
+            <a class="button" href="#page-timer">Timer</a>
+        </div>
     </div>
 
-    <div id="sta-settings">
-        <input id="sta-ssid" placeholder="SSID" />
-        <input id="sta-pass" placeholder="密码" />
-        <button id="sta-set">设置</button>
+    <div class="wrap" id="page-wifi">
+        <section class="container">
+            <h5 class="title">热点配置</h5>
+            <input id="ap-ssid" placeholder="SSID" />
+            <input id="ap-pass" placeholder="密码" />
+            <button id="ap-set">设置</button>
+        </section>
+
+        <section class="container">
+            <h5 class="title">无线连接</h5>
+            <select id="sta-ssid">
+                <option value="-">SSID</option>
+            </select>
+            <input id="sta-pass" placeholder="密码" />
+            <button id="sta-scan" class="button-outline">扫描</button>
+            <button id="sta-connect">连接</button>
+        </section>
     </div>
+
+    <div class="wrap" id="page-gpio"></div>
+
+    <div class="wrap" id="page-pwm">
+        <div class="container">
+            <input class="range" type="range" min="0" max="1023" value="512" />
+        </div>
+    </div>
+
+    <script type="text/x-template" id="tpl-gpio">
+        <div id="gpio-{num}" class="container">
+            <div class="radio-wrap">
+                <span class="radio-label">IO {num}</span></div>
+            <div class="radio-wrap">
+                <span class="radio-label">模式</span>
+                in<input name="gpio-mode-{num}" type="radio" value="in" />
+                out<input name="gpio-mode-{num}" type="radio" value="out" />
+            </div>
+            <div class="radio-wrap">
+                <span class="radio-label">电平</span>
+                高<input name="gpio-val-{num}" type="radio" value="high" />
+                低<input name="gpio-val-{num}" type="radio" value="low" />
+            </div>
+        </div>
+    </script>
+
+    <script type="text/javascript" src="zepto.tiny.js"></script>
+    <script type="text/javascript">
+        String.prototype.replaceAll = function (s1, s2) {
+            return this.replace(new RegExp(s1, "gm"), s2);
+        }
+
+        function hashchange(e) {
+            let s = window.location.hash || '#page-main';
+            $('.wrap').hide();
+            $(s).show();
+            $('#title').html(s.substring(6, s.length));
+        }
+        window.addEventListener('load', hashchange);
+        window.addEventListener('hashchange', hashchange);
+
+        for (let i = 0; i < 16; i++) {
+            $('#page-gpio').dom[0].innerHTML += $('#tpl-gpio').html().replaceAll('{num}', i < 10 ? '0' + i : i);
+        }
+    </script>
 
 </body>
 
