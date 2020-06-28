@@ -214,28 +214,21 @@ class Server:
         self._running = False
 
     def _process(self):
-        self._running = True
-        while self._running:
-            try:
-                client, addr = self._server.accept()
-            except Exception as ex:
-                if ex.args and ex.args[0] == 113:
-                    break
-                continue
-            Client(self, client).run()
-        self._running = False
+        client, addr = self._server.accept()
+        Client(self, client).run()
 
     def start(self):
         if not self._running:
             info = socket.getaddrinfo(self.host, self.port, 0, socket.SOCK_STREAM)[0]
             self._server = socket.socket(info[0], info[1], info[2])
-            self._server.setblocking(True)
+            self._server.setblocking(False)
             self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
             self._server.bind(info[-1])
             self._server.listen(16)
-            self._process()
+            self._server.setsockopt(socket.SOL_SOCKET, 20, lambda x: self._process())
+        self._running = True
 
     def stop(self):
         if self._running:
             self._server.close()
-            self._running = False
+        self._running = False
