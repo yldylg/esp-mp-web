@@ -65,7 +65,7 @@ class Request:
 		try:
 			return json.loads(self._read())
 		except:
-			return None
+			return
 
 	@staticmethod
 	def _unquote(s):
@@ -93,19 +93,18 @@ class Response:
 	def _write_header(self, key, value):
 		self._write("%s: %s\r\n" % (key, value))
 
-	def _write_before(self, code, headers, ct_type, charset, length):
+	def _write_before(self, code, headers, ct_type, charset, encoding, length):
 		self._write("HTTP/1.1 %s MSG\r\n" % code)
 		if isinstance(headers, dict):
 			for header in headers:
 				self._write_header(header, headers[header])
-		if ct_type:
-			ct = ct_type + (("; charset=%s" % charset) if charset else "")
-		else:
-			ct = "application/octet-stream"
+		ct = ct_type + (("; charset=%s" % charset) if charset else "") if ct_type else "application/octet-stream"
 		self._write_header("Content-Type", ct)
+		if encoding:
+			self._write_header("Content-Encoding", encoding)
 		if length > 0:
 			self._write_header("Content-Length", length)
-		self._write_header("Server", "mprest")
+		self._write_header("Server", "mhttpd")
 		self._write_header("Connection", "close")
 		self._write("\r\n")
 
@@ -113,16 +112,16 @@ class Response:
 		if type(content) == str:
 			content = content.encode()
 		length = len(content) if content else 0
-		self._write_before(code, headers, ct_type, charset, length)
+		self._write_before(code, headers, ct_type, charset, None, length)
 		if content:
 			self._write(content)
 
-	def write_file(self, filepath, ct_type=None, headers=None):
+	def send_file(self, filepath, ct_type, encoding=None):
 		size = os.stat(filepath)[6]
 		if size <= 0:
 			self.error(403)
 		with open(filepath, 'rb') as fp:
-			self._write_before(200, headers, ct_type, None, size)
+			self._write_before(200, None, ct_type, None, encoding, size)
 			try:
 				buf = bytearray(1024)
 				while size > 0:
@@ -137,27 +136,27 @@ class Response:
 
 	def error(self, code, msg=''):
 		body = "<html><head><title>Error</title></head><body><h1>%d</h1><h2>%s</h2></body></html>" % (code, msg)
-		return self.write( code, None, "text/html", "utf-8", body )
+		return self.write(code, None, "text/html", "utf-8", body)
 
 
 class Client:
 	_mine = {
-		".txt"   : "text/plain",
-		".htm"   : "text/html",
-		".html"  : "text/html",
-		".css"   : "text/css",
-		".js"	: "application/javascript",
-		".json"  : "application/json",
-		".woff"  : "font/woff",
-		".woff2" : "font/woff2",
-		".ttf"   : "font/ttf",
-		".otf"   : "font/otf",
-		".jpg"   : "image/jpeg",
-		".jpeg"  : "image/jpeg",
-		".png"   : "image/png",
-		".gif"   : "image/gif",
-		".svg"   : "image/svg+xml",
-		".ico"   : "image/x-icon"
+		".txt": "text/plain",
+		".htm": "text/html",
+		".html": "text/html",
+		".css": "text/css",
+		".js": "application/javascript",
+		".json": "application/json",
+		".woff": "font/woff",
+		".woff2": "font/woff2",
+		".ttf": "font/ttf",
+		".otf": "font/otf",
+		".jpg": "image/jpeg",
+		".jpeg": "image/jpeg",
+		".png": "image/png",
+		".gif": "image/gif",
+		".svg": "image/svg+xml",
+		".ico": "image/x-icon"
 	}
 
 	def __init__(self, server, socket):
@@ -170,13 +169,13 @@ class Client:
 	def run(self):
 		try:
 			if self._req.headers:
-				if (self._req.method.upper(), self._req.path) in _handlers:
+				if (self._req.method, self._req.path) in _handlers:
 					fn, minetype = _handlers[(self._req.method, self._req.path)]
 					result = fn(self._req)
 					if type(result) in (list, tuple, dict):
 						result = json.dumps(result)
 					self._resp.write(200, None, minetype, "utf-8", result)
-				elif self._req.method.upper() == "GET":
+				elif self._req.method == "GET":
 					self._static(self._req.path)
 				else:
 					self._resp.error(405)
@@ -191,13 +190,12 @@ class Client:
 		if path.endswith('/'):
 			path += 'index.html'
 		filepath = (self._srv.root + path).replace('//', '/')
-		print(filepath)
 		try:
 			os.stat(filepath)
 		except:
 			self._resp.error(404)
 		ct_type = self._get_mine_type(filepath) or 'application/octet-stream'
-		self._resp.write_file(filepath, ct_type)
+		self._resp.send_file(filepath, ct_type, encoding='gzip')
 
 	@classmethod
 	def _get_mine_type(cls, name):
