@@ -28,10 +28,12 @@ class Request:
 			self._parse_header()
 
 	def _parse_first(self):
-		line = self._skt.readline().decode().upper().strip().split()
+		line = self._skt.readline().decode().strip().split()
 		if len(line) == 3:
 			self.method, url, self.version = line
-			urls = url.lower().split('?', 1)
+			self.method = self.method.upper()
+			self.version = self.version.upper()
+			urls = url.split('?', 1)
 			self.path = self._unquote(urls[0].replace('+', ' '))
 			if len(urls) > 1:
 				for s in urls[1].split('&'):
