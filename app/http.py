@@ -16,7 +16,7 @@ def route(path, method='GET', minetype='application/json'):
 class Request:
     def __init__(self, socket):
         socket.settimeout(2)
-        self._socket = socket
+        self._skt = socket
         self.method = None
         self.version = None
         self.path = "/"
@@ -28,7 +28,7 @@ class Request:
             self._parse_header()
 
     def _parse_first(self):
-        line = self._socket.readline().decode().upper().strip().split()
+        line = self._skt.readline().decode().upper().strip().split()
         if len(line) == 3:
             self.method, url, self.version = line
             urls = url.lower().split('?', 1)
@@ -42,7 +42,7 @@ class Request:
 
     def _parse_header(self):
         while True:
-            line = self._socket.readline().decode().strip().split(':', 1)
+            line = self._skt.readline().decode().strip().split(':', 1)
             if len(line) == 2:
                 self.headers[line[0].strip().lower()] = line[1].strip()
             elif len(line) == 1 and not line[0]:
@@ -54,9 +54,9 @@ class Request:
                 return False
 
     def _read(self, size=None):
-        self._socket.setblocking(False)
-        b = self._socket.read(size or self.length)
-        self._socket.setblocking(True)
+        self._skt.setblocking(False)
+        b = self._skt.read(size or self.length)
+        self._skt.setblocking(True)
         return b if b else b''
 
     def read(self):
@@ -79,13 +79,13 @@ class Request:
 
 class Response:
     def __init__(self, socket):
-        self._socket = socket
+        self._skt = socket
 
     def _write(self, data):
         if data:
             if type(data) == str:
                 data = data.encode()
-            return self._socket.write(data)
+            return self._skt.write(data)
         return 0
 
     def _write_header(self, key, value):
@@ -133,8 +133,8 @@ class Response:
                 self.error(500)
         self.error(404)
 
-    def error(self, code):
-        body = "<html><head><title>Error</title></head><body><h1>%d</h1></body></html>" % code
+    def error(self, code, msg=''):
+        body = "<html><head><title>Error</title></head><body><h1>%d</h1><h2>%s</h2></body></html>" % (code, msg)
         return self.write( code, None, "text/html", "utf-8", body )
 
 
@@ -160,10 +160,10 @@ class Client:
 
     def __init__(self, server, socket):
         socket.settimeout(2)
-        self._server = server
-        self._socket = socket
-        self._req = Request(self._socket)
-        self._resp = Response(self._socket)
+        self._srv = server
+        self._skt = socket
+        self._req = Request(self._skt)
+        self._resp = Response(self._skt)
 
     def run(self):
         try:
@@ -180,15 +180,15 @@ class Client:
                     self._resp.error(405)
             else:
                 self._resp.error(400)
-        except:
-            self._resp.error(500)
+        except Exception as e:
+            self._resp.error(500, msg=e)
         finally:
-            self._socket.close()
+            self._skt.close()
 
     def _static(self, path):
         if path.endswith('/'):
             path += 'index.html'
-        filepath = (self._server.root + path).replace('//', '/')
+        filepath = (self._srv.root + path).replace('//', '/')
         print(filepath)
         try:
             os.stat(filepath)
@@ -214,21 +214,26 @@ class Server:
         self._running = False
 
     def _process(self):
-        client, addr = self._server.accept()
+        client, addr = self._srv.accept()
         Client(self, client).run()
 
     def start(self):
         if not self._running:
             info = socket.getaddrinfo(self.host, self.port, 0, socket.SOCK_STREAM)[0]
-            self._server = socket.socket(info[0], info[1], info[2])
-            self._server.setblocking(False)
-            self._server.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
-            self._server.bind(info[-1])
-            self._server.listen(16)
-            self._server.setsockopt(socket.SOL_SOCKET, 20, lambda x: self._process())
+            self._srv = socket.socket(info[0], info[1], info[2])
+            self._srv.setblocking(False)
+            self._srv.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+            self._srv.bind(info[-1])
+            self._srv.listen(16)
+            try:
+                self._srv.setsockopt(socket.SOL_SOCKET, 20, lambda x: self._process())
+            except:
+                self._srv.setblocking(True)
+                while True:
+                    self._process()
         self._running = True
 
     def stop(self):
         if self._running:
-            self._server.close()
+            self._srv.close()
         self._running = False
